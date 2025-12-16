@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Melody Pixel — Level 1..3 + Penjinak + Pedang</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    body { margin:0; font-family:"Press Start 2P",monospace; background:#f7f4f8; height:100vh; display:flex; justify-content:center; align-items:center; }
+    #loginPopup{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;justify-content:center;align-items:center;z-index:1000;}
+    #loginBox{width:min(90vw,360px);background:#fff7fb;border:4px solid #ff7fb0;border-radius:12px;box-shadow:0 8px 20px rgba(255,127,176,.3);overflow:hidden;}
+    .titlebar{background:linear-gradient(#ffd3e6,#ffe3f1);padding:12px;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;}
+    .content{padding:18px;}
+    .field{width:100%;padding:12px;border:2px solid #ffb6c1;border-radius:8px;background:#fff;margin-bottom:10px;}
+    .toggle-pass-big{background:#ffe3f1;border:2px solid #ff7fb0;color:#ff2e7e;padding:8px;border-radius:8px;cursor:pointer;}
+    .btn{display:inline-block;padding:10px 14px;background:#ff7fb0;color:#fff;border:none;border-radius:8px;cursor:pointer;}
+    #gameSection{display:none;text-align:center;}
+    canvas{border:3px solid #fff;background:linear-gradient(#87CEEB,#bfe9ff);image-rendering:pixelated;}
+    .controls{margin-top:10px;text-align:center;}
+    .hud{font-size:18px;font-family:Arial,sans-serif;margin:10px auto;color:#fff;text-shadow:1px 1px 3px #000;display:flex;justify-content:space-between;width:820px;}
+    .popup{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:none;justify-content:center;align-items:center;z-index:2000;}
+    .popup-content{background:#ffe3f1;border:4px solid #ff7fb0;padding:20px 30px;border-radius:12px;text-align:center;color:#ff2e7e;}
+    .smallnote{font-family:Arial, sans-serif; font-size:12px; color:#333; margin-top:8px;}
+
+  button {
+    touch-action: manipulation;
+  }
+  </style>
+</head>
+<body>
+  <!-- LOGIN -->
+  <div id="loginPopup">
+    <div id="loginBox">
+      <div class="titlebar"><div style="width:18px;height:18px;background:pink;border:2px solid #ff5f9c;border-radius:3px"></div><div style="margin-left:8px">LOGIN</div></div>
+      <form class="content" onsubmit="event.preventDefault();checkLogin();">
+        <input id="username" class="field" placeholder="Username" style="width:290px;">
+        <input id="password" type="password" class="field" placeholder="Password" style="width:290px;">
+        <div style="text-align:center;">
+          <button type="button" class="toggle-pass-big" onclick="togglePassword()">🎀 Tampilkan Password</button>
+        </div>
+        <div style="text-align:center;margin-top:10px;">
+          <button class="btn" type="submit">MASUK</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- GAME -->
+  <section id="gameSection">
+    <div class="hud">
+      <div id="lives">❤️❤️❤️</div>
+      <div>Skor: <span id="score">0</span> | Level: <span id="levelDisplay">1</span></div>
+      <div>Penjinak: <span id="disarmCount">0</span> 🧰 | Pedang: <span id="swordStatus">Tidak</span> 🗡️</div>
+    </div>
+
+    <canvas id="gameCanvas" width="820" height="500"></canvas>
+
+    <div class="controls">
+      <button type="button" onclick="moveLeft()"style="font-size:30px; padding: 50px;">⬅️</button>
+      <button type="button"onclick="jump()"style="font-size:30px; padding: 50px;">⬆️</button>
+      <button type="button"onclick="moveRight()"style="font-size:30px; padding: 50px;">➡️</button>
+      <button onclick="attack()" title="Serang (Z)">🗡️ Serang (Z)</button>
+    </div>
+
+    <div class="smallnote">Kontrol keyboard: ← → = bergerak sekali, ↑ = lompat (di tangga lompat lebih tinggi), Z = serang.</div>
+
+    <div class="popup" id="popup">
+      <div class="popup-content" id="popupContent">
+        <h2 id="popupTitle">Selamat!</h2>
+        <p id="popupBody"></p>
+        <div id="popupButtons" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <!-- Sounds -->
+    <audio id="coinSound" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
+    <audio id="jumpSound" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
+    <audio id="hitSound" src="https://actions.google.com/sounds/v1/cartoon/metal_thud_and_clang.ogg"></audio>
+    <audio id="explosionSound" src="https://actions.google.com/sounds/v1/explosions/explosion_large.ogg"></audio>
+    <audio id="winSound" src="https://actions.google.com/sounds/v1/cartoon/clang.ogg"></audio>
+    <audio id="disarmSound" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
+    <audio id="slashSound" src="https://actions.google.com/sounds/v1/foley/knock_on_wood.ogg"></audio>
+  </section>
+
+  <script>
+    /* ---------- Login ---------- */
+    function togglePassword(){ const i=document.getElementById('password'); i.type = i.type === 'password' ? 'text' : 'password'; }
+    function checkLogin(){ if (document.getElementById('password').value === 'seblak123'){ document.getElementById('loginPopup').style.display='none'; document.getElementById('gameSection').style.display='block'; loadLevel(currentLevel); lastTime = performance.now(); paused = false; update(); } else alert('Password salah ❌'); }
+
+    /* ---------- Core ---------- */
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let score = 0;
+    let lives = 3;
+    let gameOver = false;
+    let invulnerable = false;
+    const INVULNERABLE_MS = 1000;
+
+    const fruits = ["🍎","🍊","🍓","🍇","🍌"];
+    const bombIcon = "💣";
+    const enemyIcon = "👾";
+    const disarmIcon = "🧰";
+    const swordIcon = "🗡️";
+
+    const melody = { x:50, y:400, size:30, color:'pink', dy:0, gravity:0.5, jumpPower:-12, speed:30, onGround:true, climbSpeed:6, onLadder:false, facing:'right' };
+
+    let currentLevel = 1;
+    const MAX_LEVEL = 3; // sekarang ada 3 level
+    document.getElementById('levelDisplay').textContent = currentLevel;
+
+    // map objects
+    let platforms = [], coins = [], bombs = [], ladders = [], enemies = [], disarmers = [], swords = [];
+    let explosions = [];
+
+    // inventory
+    let disarmCount = 0;
+    let hasSword = false;
+
+    // attack state
+    const ATTACK_COOLDOWN_MS = 500;
+    let lastAttackAt = 0;
+    let slashEffects = []; // {x,y,w,h,start,duration}
+
+    // pause flag (popup)
+    let paused = false;
+
+    // audio elems
+    const coinSound = document.getElementById("coinSound");
+    const jumpSound = document.getElementById("jumpSound");
+    const hitSound = document.getElementById("hitSound");
+    const explosionSound = document.getElementById("explosionSound");
+    const winSound = document.getElementById("winSound");
+    const disarmSound = document.getElementById("disarmSound");
+    const slashSound = document.getElementById("slashSound");
+
+    /* ---------- Drawing ---------- */
+    function drawBackground(){
+      ctx.fillStyle='saddlebrown'; ctx.fillRect(0,470,canvas.width,30);
+      ctx.fillStyle='green'; ctx.fillRect(0,470,canvas.width,5);
+      platforms.forEach(p=>{ ctx.fillStyle='saddlebrown'; ctx.fillRect(p.x,p.y,p.width,p.height); ctx.fillStyle='green'; ctx.fillRect(p.x,p.y,p.width,5); });
+      ladders.forEach(l=>{
+        ctx.fillStyle='#8B5A2B'; ctx.fillRect(l.x,l.y,6,l.height); ctx.fillRect(l.x + l.width - 6, l.y, 6, l.height);
+        const rungCount = Math.max(3, Math.floor(l.height/20));
+        for(let i=0;i<rungCount;i++){ const ry = l.y + (i/(rungCount-1))*(l.height-6); ctx.fillRect(l.x+6, ry, l.width-12, 4); }
+      });
+      ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(150,80,20,0,Math.PI*2); ctx.arc(170,80,25,0,Math.PI*2); ctx.arc(190,80,20,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(640,50,20,0,Math.PI*2); ctx.arc(660,50,25,0,Math.PI*2); ctx.arc(680,50,20,0,Math.PI*2); ctx.fill();
+    }
+
+    function drawMelody(now){
+      ctx.fillStyle = melody.color;
+      ctx.fillRect(melody.x, melody.y, melody.size, melody.size);
+      ctx.fillStyle = 'black';
+      ctx.fillRect(melody.x+6, melody.y+8, 4, 4);
+      ctx.fillRect(melody.x+18, melody.y+8, 4, 4);
+      ctx.fillStyle = 'red';
+      ctx.fillRect(melody.x+10, melody.y-5, 10, 5);
+
+      // jika membawa penjinak: anim icon di atas kepala (bobbing)
+      if (disarmCount > 0) {
+        const t = now || performance.now();
+        const bob = Math.sin(t/220) * 6;
+        const scale = 1 + 0.08 * Math.sin(t/110);
+        const iconX = melody.x + melody.size/2;
+        const iconY = melody.y - 14 + bob;
+        ctx.save(); ctx.translate(iconX, iconY); ctx.scale(scale, scale);
+        ctx.font = (14) + "px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(disarmIcon, 0, 0);
+        ctx.restore();
+      }
+
+      // jika memiliki pedang tampilkan ikon kecil di samping kepala
+      if (hasSword) {
+        const t = now || performance.now();
+        const bob = Math.sin(t/200) * 3;
+        ctx.font = "14px Arial"; ctx.textAlign="center"; ctx.textBaseline="middle";
+        ctx.fillText(swordIcon, melody.x + melody.size + 8, melody.y - 8 + bob);
+      }
+
+      // invul outline
+      if (invulnerable) { ctx.strokeStyle='yellow'; ctx.lineWidth=2; ctx.strokeRect(melody.x-2, melody.y-2, melody.size+4, melody.size+4); }
+    }
+
+    function drawCoins(){ ctx.textAlign='center'; ctx.textBaseline='middle'; coins.forEach(c=>{ ctx.font=(c.size*1.6)+'px Arial'; ctx.fillText(c.icon,c.x,c.y); }); }
+    function drawBombs(){ ctx.textAlign='center'; ctx.textBaseline='middle'; bombs.forEach(b=>{ ctx.font=(b.size*1.6)+'px Arial'; ctx.fillText(b.icon,b.x,b.y); }); }
+    function drawEnemies(){ ctx.textAlign='center'; ctx.textBaseline='middle'; enemies.forEach(e=>{ ctx.font=(e.size*1.6)+'px Arial'; ctx.fillText(e.icon,e.x,e.y); }); }
+    function drawDisarmers(){ ctx.textAlign='center'; ctx.textBaseline='middle'; disarmers.forEach(d=>{ ctx.font=(d.size*1.6)+'px Arial'; ctx.fillText(d.icon,d.x,d.y); }); }
+    function drawSwords(){ ctx.textAlign='center'; ctx.textBaseline='middle'; swords.forEach(s=>{ ctx.font=(s.size*1.6)+'px Arial'; ctx.fillText(s.icon,s.x,s.y); }); }
+
+    function drawSlashEffects(now){
+      for (let i = slashEffects.length-1; i>=0; i--){
+        const s = slashEffects[i];
+        const t = now - s.start;
+        if (t > s.duration) { slashEffects.splice(i,1); continue; }
+        const alpha = 1 - (t / s.duration);
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.fillRect(s.x, s.y, s.w, s.h);
+        ctx.restore();
+      }
+    }
+
+    function drawExplosions(now){
+      for(let i=explosions.length-1;i>=0;i--){
+        const ex = explosions[i];
+        const t = now - ex.startTime;
+        if (t > ex.duration) { explosions.splice(i,1); continue; }
+        const progress = t / ex.duration;
+        const radius = ex.maxRadius * progress;
+        const alpha = 1 - progress;
+        const grad = ctx.createRadialGradient(ex.x, ex.y, radius*0.1, ex.x, ex.y, radius);
+        grad.addColorStop(0, `rgba(255,200,0,${alpha})`);
+        grad.addColorStop(0.6, `rgba(255,120,0,${alpha*0.8})`);
+        grad.addColorStop(1, `rgba(120,10,10,0)`);
+        ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(ex.x, ex.y, radius, 0, Math.PI*2); ctx.fill();
+      }
+    }
+
+    /* ---------- Helpers & Collisions ---------- */
+    function collide(ax,ay,as,bx,by,bs){ return ax < bx+bs && ax+as > bx-bs && ay < by+bs && ay+as > by-bs; }
+    function updateLivesDisplay(){ document.getElementById('lives').textContent = '❤️'.repeat(Math.max(0,lives)); }
+    function updateDisarmDisplay(){ document.getElementById('disarmCount').textContent = disarmCount; }
+    function updateSwordDisplay(){ document.getElementById('swordStatus').textContent = hasSword ? 'Ya' : 'Tidak'; }
+
+    /* ---------- Fruit ---------- */
+    function checkFruitCollision(){
+      for (let i = coins.length-1; i>=0; i--){
+        const c = coins[i];
+        if (collide(melody.x, melody.y, melody.size, c.x, c.y, c.size)){
+          coins.splice(i,1); score++; document.getElementById('score').textContent = score; coinSound.currentTime=0; coinSound.play();
+        }
+      }
+      if (coins.length === 0) {
+        paused = true;
+        if (currentLevel < MAX_LEVEL) showLevelCompletePopup();
+        else showFinalWinPopup();
+      }
+    }
+
+    /* ---------- Disarmer (pickup) ---------- */
+    function checkDisarmerCollision(){
+      for (let i = disarmers.length-1; i>=0; i--){
+        const d = disarmers[i];
+        if (collide(melody.x, melody.y, melody.size, d.x, d.y, d.size)){
+          disarmers.splice(i,1);
+          disarmCount = Math.max(0, disarmCount + 1);
+          updateDisarmDisplay();
+          disarmSound.currentTime=0; disarmSound.play();
+        }
+      }
+    }
+
+    /* ---------- Sword pickup ---------- */
+    function checkSwordCollision(){
+      for (let i = swords.length-1; i>=0; i--){
+        const s = swords[i];
+        if (collide(melody.x, melody.y, melody.size, s.x, s.y, s.size)){
+          swords.splice(i,1);
+          hasSword = true;
+          updateSwordDisplay();
+          disarmSound.currentTime=0; disarmSound.play(); // reuse sound
+        }
+      }
+    }
+
+    /* ---------- Bomb ---------- */
+    function checkBombCollision(){
+      if (invulnerable || gameOver || paused) return;
+      for (let i = bombs.length-1; i>=0; i--){
+        const b = bombs[i];
+        if (collide(melody.x, melody.y, melody.size, b.x, b.y, b.size)){
+          if (disarmCount > 0) {
+            bombs.splice(i,1);
+            disarmCount--; updateDisarmDisplay();
+            explosionSound.currentTime=0; explosionSound.play();
+            explosions.push({ x:b.x, y:b.y, startTime:performance.now(), duration:360, maxRadius:30 });
+          } else {
+            loseLife();
+            explosionSound.currentTime=0; explosionSound.play();
+            explosions.push({ x:b.x, y:b.y, startTime:performance.now(), duration:500, maxRadius:50 });
+            const knockback = 90;
+            if (melody.x < b.x) melody.x = Math.max(0, melody.x - knockback);
+            else melody.x = Math.min(canvas.width - melody.size, melody.x + knockback);
+            melody.dy = melody.jumpPower/2; melody.onGround=false;
+            bombs.splice(i,1);
+            invulnerable = true; setTimeout(()=>{ invulnerable=false; }, INVULNERABLE_MS);
+          }
+          break;
+        }
+      }
+    }
+
+    /* ---------- Enemy ---------- */
+    function updateEnemies(delta){
+      enemies.forEach(e=>{
+        e.x += e.dir * e.speed * (delta/16);
+        if (e.x < e.minX){ e.x = e.minX; e.dir *= -1; }
+        if (e.x > e.maxX){ e.x = e.maxX; e.dir *= -1; }
+      });
+    }
+    function checkEnemyCollision(){
+      if (invulnerable || gameOver || paused) return;
+      for (let i=0;i<enemies.length;i++){
+        const e = enemies[i];
+        if (collide(melody.x, melody.y, melody.size, e.x, e.y, e.size)){
+          loseLife();
+          hitSound.currentTime=0; hitSound.play();
+          const knockback = 80;
+          if (melody.x < e.x) melody.x = Math.max(0, melody.x - knockback);
+          else melody.x = Math.min(canvas.width - melody.size, melody.x + knockback);
+          melody.dy = melody.jumpPower/2; melody.onGround=false;
+          invulnerable = true; setTimeout(()=>{ invulnerable=false; }, INVULNERABLE_MS);
+          break;
+        }
+      }
+    }
+
+    /* ---------- Attack (Z) ---------- */
+    function attack(){
+      if (!hasSword) return;
+      const now = performance.now();
+      if (now - lastAttackAt < ATTACK_COOLDOWN_MS) return;
+      lastAttackAt = now;
+      // slash box in front of player based on facing
+      const range = 50;
+      let sx, sy, sw, sh;
+      sy = melody.y + 6;
+      sh = melody.size - 12;
+      if (melody.facing === 'right') {
+        sx = melody.x + melody.size;
+        sw = range;
+      } else {
+        sx = melody.x - range;
+        sw = range;
+      }
+      // add slash visual effect
+      slashEffects.push({ x: sx, y: sy, w: sw, h: sh, start: now, duration: 180 });
+      slashSound.currentTime = 0; slashSound.play();
+
+      // check collision with enemies
+      for (let i = enemies.length -1; i>=0; i--){
+        const e = enemies[i];
+        // check overlap between slash box and enemy center (approx)
+        if (sx < e.x + e.size && sx + sw > e.x - e.size && sy < e.y + e.size && sy + sh > e.y - e.size) {
+          // enemy hit: remove
+          enemies.splice(i,1);
+          // small explosion effect
+          explosions.push({ x: e.x, y: e.y, startTime: now, duration: 220, maxRadius: 28 });
+        }
+      }
+    }
+
+    /* ---------- Life & Win ---------- */
+    function loseLife(){
+      if (gameOver) return;
+      lives--; updateLivesDisplay();
+      if (lives <= 0){
+        gameOver = true; paused = true;
+        showPopup('Game Over 💥', 'Kamu kehabisan nyawa.', [{ label:'Replay', action:'reset' }]);
+      }
+    }
+
+    function showFinalWinPopup(){
+      paused = true;
+      showPopup('You Win! 🎉', 'Kamu menyelesaikan semua level.', [{ label:'Replay', action:'reset' }]);
+    }
+
+    /* ---------- Popups ---------- */
+    function showPopup(title, body, buttons){
+      document.getElementById('popupTitle').textContent = title;
+      document.getElementById('popupBody').textContent = body + ' Skor: ' + score;
+      const area = document.getElementById('popupButtons');
+      area.innerHTML = '';
+      buttons.forEach(b=>{
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.textContent = b.label;
+        btn.onclick = ()=> {
+          document.getElementById('popup').style.display = 'none';
+          if (b.action === 'reset') resetGame();
+          else if (b.action === 'continue') continueToNextLevel();
+        };
+        area.appendChild(btn);
+      });
+      document.getElementById('popup').style.display = 'flex';
+    }
+
+    function showLevelCompletePopup(){
+      showPopup('Selamat! Level selesai 🎉', 'Lanjut ke level ' + (currentLevel+1) + '?', [
+        { label:'Lanjutkan', action:'continue' },
+        { label:'Main Ulang', action:'reset' }
+      ]);
+    }
+
+    /* ---------- Levels (1..3) ---------- */
+    function loadLevel(level){
+      melody.x = 50; melody.y = 400; melody.dy = 0; melody.onGround = true; melody.onLadder = false; melody.facing = 'right';
+      invulnerable = false;
+      document.getElementById('levelDisplay').textContent = level;
+
+      // clear arrays
+      platforms = []; coins = []; bombs = []; ladders = []; enemies = []; disarmers = []; swords = [];
+      explosions = []; slashEffects = [];
+
+      if (level === 1){
+        platforms = [{x:250,y:370,width:200,height:20},{x:450,y:300,width:150,height:20},{x:180,y:230,width:160,height:20},{x:380,y:160,width:160,height:20},{x:300,y:90,width:120,height:20}];
+        const fruitPos = [{x:150,y:430},{x:250,y:430},{x:500,y:430},{x:300,y:360},{x:380,y:360},{x:480,y:290},{x:550,y:290},{x:200,y:220},{x:280,y:220},{x:400,y:150},{x:460,y:150},{x:320,y:80},{x:380,y:80}];
+        coins = fruitPos.map(p=>({ ...p, icon: fruits[Math.random()*fruits.length|0], size:18 }));
+        const bombPos = [{x:220,y:430},{x:420,y:360},{x:350,y:220},{x:500,y:150}];
+        bombs = bombPos.map(p=>({...p, icon:bombIcon, size:20}));
+        ladders = [{x:270,y:320,width:40,height:50},{x:420,y:260,width:40,height:40}];
+        enemies = [{x:320,y:430,size:24,dir:1,speed:0.9,minX:200,maxX:450,icon:enemyIcon}];
+        disarmers = [{x:520,y:430, icon:disarmIcon, size:18, x:520, y:430}];
+      } else if (level === 2){
+        platforms = [{x:120,y:380,width:160,height:20},{x:340,y:380,width:160,height:20},{x:520,y:320,width:150,height:20},{x:240,y:270,width:140,height:20},{x:420,y:200,width:120,height:20},{x:100,y:140,width:120,height:20}];
+        const fruitPos = [{x:150,y:430},{x:200,y:430},{x:270,y:430},{x:380,y:340},{x:460,y:340},{x:560,y:290},{x:280,y:240},{x:320,y:240},{x:440,y:180},{x:140,y:110}];
+        coins = fruitPos.map(p=>({ ...p, icon: fruits[Math.random()*fruits.length|0], size:18 }));
+        const bombPos = [{x:230,y:430},{x:360,y:380},{x:520,y:320},{x:450,y:200}];
+        bombs = bombPos.map(p=>({...p, icon:bombIcon, size:20}));
+        ladders = [{x:180,y:330,width:40,height:50},{x:380,y:330,width:40,height:50},{x:560,y:270,width:40,height:50},{x:280,y:200,width:40,height:70}];
+        enemies = [{x:150,y:430,size:24,dir:1,speed:1.1,minX:120,maxX:260,icon:enemyIcon},{x:420,y:340,size:24,dir:-1,speed:1.0,minX:340,maxX:500,icon:enemyIcon},{x:560,y:290,size:24,dir:1,speed:1.2,minX:520,maxX:650,icon:enemyIcon}];
+        disarmers = [{x:380,y:340, icon:disarmIcon, size:18, x:380, y:340}, {x:140,y:110, icon:disarmIcon, size:18, x:140, y:110}];
+      } else if (level === 3){
+        // LEVEL 3: lebih sulit — banyak bom & musuh; tersedia pedang untuk dibawa
+        platforms = [
+          {x:60,y:420,width:120,height:20},
+          {x:220,y:380,width:160,height:20},
+          {x:420,y:360,width:140,height:20},
+          {x:620,y:320,width:160,height:20},
+          {x:140,y:260,width:140,height:20},
+          {x:360,y:220,width:160,height:20},
+          {x:540,y:140,width:120,height:20}
+        ];
+        const fruitPos = [
+          {x:80,y:460},{x:140,y:460},{x:260,y:420},{x:320,y:420},{x:460,y:340},{x:540,y:340},
+          {x:660,y:300},{x:200,y:300},{x:400,y:180},{x:580,y:120}
+        ];
+        coins = fruitPos.map(p=>({ ...p, icon: fruits[Math.random()*fruits.length|0], size:18 }));
+        // banyak bom
+        const bombPos = [
+          {x:100,y:460},{x:210,y:420},{x:300,y:420},{x:440,y:360},{x:520,y:340},{x:640,y:300},{x:560,y:220},{x:700,y:300}
+        ];
+        bombs = bombPos.map(p=>({...p, icon:bombIcon, size:20}));
+        // ladders
+        ladders = [{x:260,y:340,width:40,height:80},{x:520,y:260,width:40,height:80},{x:380,y:180,width:40,height:50}];
+        // banyak musuh, lebih cepat
+        enemies = [
+          {x:80,y:460,size:24,dir:1,speed:1.6,minX:60,maxX:180,icon:enemyIcon},
+          {x:260,y:420,size:24,dir:-1,speed:1.4,minX:220,maxX:360,icon:enemyIcon},
+          {x:460,y:340,size:24,dir:1,speed:1.5,minX:420,maxX:580,icon:enemyIcon},
+          {x:660,y:300,size:24,dir:-1,speed:1.7,minX:620,maxX:760,icon:enemyIcon},
+          {x:560,y:220,size:24,dir:1,speed:1.3,minX:520,maxX:700,icon:enemyIcon}
+        ];
+        // disarmers fewer in this level
+        disarmers = [{x:120,y:460, icon:disarmIcon, size:18, x:120, y:460}];
+        // pedang tersedia (pemicu untuk serang)
+        swords = [{x:400, y:180, icon:swordIcon, size:20, x:400, y:180}];
+      } else {
+        showFinalWinPopup(); return;
+      }
+
+      // reset displays (keep score, but inventory handled by continue)
+      explosions = [];
+      updateLivesDisplay(); updateDisarmDisplay(); updateSwordDisplay();
+      document.getElementById('score').textContent = score;
+    }
+
+    function continueToNextLevel(){
+      currentLevel++;
+      if (currentLevel > MAX_LEVEL) { showFinalWinPopup(); return; }
+      // reset lives and give 1 penjinak; sword NOT auto-granted
+      lives = 3; disarmCount = 1; hasSword = false;
+      updateLivesDisplay(); updateDisarmDisplay(); updateSwordDisplay();
+      loadLevel(currentLevel);
+      paused = false;
+      lastTime = performance.now();
+      update();
+    }
+
+    /* ---------- Platform & Ladder ---------- */
+    function checkPlatformCollision(){
+      melody.onGround = false; melody.onLadder = false;
+      ladders.forEach(l=>{
+        if (melody.x + melody.size > l.x && melody.x < l.x + l.width && melody.y + melody.size > l.y && melody.y < l.y + l.height){
+          melody.onLadder = true;
+        }
+      });
+      if (!melody.onLadder){
+        platforms.forEach(p=>{
+          if (melody.x < p.x + p.width && melody.x + melody.size > p.x && melody.y + melody.size <= p.y + 6 && melody.y + melody.size + melody.dy >= p.y){
+            melody.y = p.y - melody.size; melody.dy = 0; melody.onGround = true;
+          }
+        });
+        if (melody.y + melody.size >= 470){ melody.y = 470 - melody.size; melody.dy = 0; melody.onGround = true; }
+      } else {
+        // on ladder: gravity not applied; climb via keydown
+      }
+    }
+
+    /* ---------- Controls (single-step) ---------- */
+    function moveLeft(){ melody.x -= melody.speed; if (melody.x < 0) melody.x = 0; melody.facing='left'; }
+    function moveRight(){ melody.x += melody.speed; if (melody.x + melody.size > canvas.width) melody.x = canvas.width - melody.size; melody.facing='right'; }
+    function jump(){
+      if (melody.onLadder) { melody.dy = melody.jumpPower * 1.6; melody.onLadder=false; melody.onGround=false; jumpSound.currentTime=0; jumpSound.play(); }
+      else if (melody.onGround) { melody.dy = melody.jumpPower; melody.onGround=false; jumpSound.currentTime=0; jumpSound.play(); }
+    }
+
+    document.addEventListener('keydown', (e)=>{
+      if (e.key === 'z' || e.key === 'Z') { attack(); return; }
+      if (paused) return;
+      if (e.key === 'ArrowLeft') moveLeft();
+      else if (e.key === 'ArrowRight') moveRight();
+      else if (e.key === 'ArrowUp') {
+        if (melody.onLadder) { melody.dy = melody.jumpPower * 1.6; melody.onLadder=false; melody.onGround=false; jumpSound.currentTime=0; jumpSound.play(); } else jump();
+      } else if (e.key === 'ArrowDown') {
+        if (melody.onLadder) melody.y += melody.climbSpeed * 4;
+      }
+    });
+
+    /* ---------- Reset ---------- */
+    function resetGame(){
+      score = 0; lives = 3; gameOver = false; invulnerable = false; disarmCount = 0; hasSword = false;
+      currentLevel = 1; document.getElementById('popup').style.display = 'none';
+      loadLevel(currentLevel); paused = false; lastTime = performance.now(); update();
+    }
+
+    /* ---------- Game Loop ---------- */
+    let lastTime = performance.now();
+    function update(timestamp){
+      // if paused: draw static frame + animated icons (disarm/sword) but don't progress game state
+      if (paused) {
+        const now = timestamp || performance.now();
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        drawBackground();
+        drawCoins(); drawBombs(); drawEnemies(); drawDisarmers(); drawSwords();
+        drawMelody(now); drawSlashEffects(now); drawExplosions(now);
+        return;
+      }
+
+      if (gameOver) return;
+
+      const now = timestamp || performance.now();
+      const delta = now - lastTime;
+      lastTime = now;
+
+      if (!melody.onLadder) { melody.y += melody.dy; melody.dy += melody.gravity; }
+
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+
+      drawBackground();
+      drawCoins(); drawBombs(); drawEnemies(); drawDisarmers(); drawSwords();
+      drawMelody(now);
+      drawSlashEffects(now);
+      drawExplosions(now);
+
+      checkPlatformCollision();
+      checkFruitCollision();
+      checkDisarmerCollision();
+      checkSwordCollision();
+      checkBombCollision();
+      updateEnemies(delta);
+      checkEnemyCollision();
+
+      // slash effects are handled via draw & their collision already processed at attack time
+
+      if (melody.y > canvas.height) { loseLife(); melody.x = 50; melody.y = 400; melody.dy = 0; }
+
+      requestAnimationFrame(update);
+    }
+
+    // initial displays
+    updateLivesDisplay(); updateDisarmDisplay(); updateSwordDisplay();
+
+    /* ---------- END ---------- */
+  </script>
+
+<script>
+window.addEventListener("keydown", function(e){
+  if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key)) {
+    e.preventDefault();
+  }
+}, { passive:false });
+</script>
+</body>
+</html>
